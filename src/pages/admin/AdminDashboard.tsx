@@ -1,7 +1,33 @@
-﻿import { useState, useEffect } from 'react'
-import { Users, UserCheck, TrendingUp, Loader2, Receipt, Store, ChevronDown, ChevronUp } from 'lucide-react'
+﻿import { useState, useEffect, useMemo } from 'react'
+import { Users, UserCheck, TrendingUp, Loader2, Receipt, Store, ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 import { adminService } from '../../services/adminService'
 import type { AdminStats } from '../../services/adminService'
+
+type RevSortKey = 'name' | 'activeClients' | 'monthlyFee' | 'estimated'
+type SortDir = 'asc' | 'desc'
+
+function SortTh({
+  label, sortKey, current, dir, onSort, align = 'left',
+}: {
+  label: string; sortKey: RevSortKey; current: RevSortKey; dir: SortDir
+  onSort: (k: RevSortKey) => void; align?: 'left' | 'center' | 'right'
+}) {
+  const active = current === sortKey
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  return (
+    <th
+      className={`py-2 px-3 text-gray-500 font-medium cursor-pointer select-none hover:text-gray-700 ${alignCls}`}
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active
+          ? (dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />)
+          : <ChevronsUpDown size={12} className="opacity-40" />}
+      </span>
+    </th>
+  )
+}
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -9,6 +35,13 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAllRevenue, setShowAllRevenue] = useState(false)
+  const [sortKey, setSortKey] = useState<RevSortKey>('estimated')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const handleSort = (key: RevSortKey) => {
+    if (key === sortKey) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir(key === 'name' ? 'asc' : 'desc') }
+  }
 
   useEffect(() => {
     adminService.getStats().then(setStats).finally(() => setLoading(false))
@@ -32,7 +65,19 @@ export default function AdminDashboard() {
 
   const revenue = stats?.revenueByReseller ?? []
   const SHOW_LIMIT = 5
-  const visibleRevenue = showAllRevenue ? revenue : revenue.slice(0, SHOW_LIMIT)
+
+  const sortedRevenue = useMemo(() => {
+    return [...revenue].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortKey === 'activeClients') cmp = a.activeClients - b.activeClients
+      else if (sortKey === 'monthlyFee') cmp = a.monthlyFee - b.monthlyFee
+      else cmp = a.estimated - b.estimated
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [revenue, sortKey, sortDir])
+
+  const visibleRevenue = showAllRevenue ? sortedRevenue : sortedRevenue.slice(0, SHOW_LIMIT)
 
   return (
     <div className="space-y-6">
@@ -78,10 +123,10 @@ export default function AdminDashboard() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 px-3 text-gray-500 font-medium">Gestor</th>
-                    <th className="text-center py-2 px-3 text-gray-500 font-medium">Clientes Ativos</th>
-                    <th className="text-center py-2 px-3 text-gray-500 font-medium">Mensalidade</th>
-                    <th className="text-right py-2 px-3 text-gray-500 font-medium">Receita Estimada</th>
+                    <SortTh label="Gestor"           sortKey="name"          current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
+                    <SortTh label="Clientes Ativos"  sortKey="activeClients" current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                    <SortTh label="Mensalidade"      sortKey="monthlyFee"    current={sortKey} dir={sortDir} onSort={handleSort} align="center" />
+                    <SortTh label="Receita Estimada" sortKey="estimated"     current={sortKey} dir={sortDir} onSort={handleSort} align="right" />
                   </tr>
                 </thead>
                 <tbody>

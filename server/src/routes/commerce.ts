@@ -180,7 +180,7 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
     // Lança automaticamente no financeiro com o mesmo ID curto da venda
     await db.run(
       `INSERT INTO financial_transactions (id, commerce_id, type, category, description, amount, date, sale_id)
-       VALUES (?, ?, 'income', 'sale', ?, ?, datetime('now'), ?)`,
+       VALUES (?, ?, 'income', 'Venda', ?, ${sql.now()}, ?)`,
       [uuidv4(), req.user!.commerceId, `Venda #${saleId.slice(0, 8).toUpperCase()}`, total, saleId]
     )
 
@@ -217,6 +217,56 @@ router.get('/sales', async (req: AuthRequest, res: Response) => {
     res.json({ sales: salesWithItems })
   } catch (err) {
     console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
+// DELETE /api/commerce/sales/:id — cancela venda, estorna estoque e remove lançamento financeiro
+router.delete('/sales/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const db = getDb()
+
+    // Verifica se a venda pertence ao comércio e está completada
+    const sale = await db.get<{ id: string; total: number; status: string }>(
+      `SELECT id, total, status FROM sales WHERE id = ? AND commerce_id = ?`,
+      [id, req.user!.commerceId]
+    )
+    if (!sale) {
+      res.status(404).json({ error: 'Venda não encontrada.' }); return
+    }
+    if (sale.status === 'canceled') {
+      res.status(409).json({ error: 'Venda já cancelada.' }); return
+    }
+
+    // Busca itens para estornar estoque
+    const items = await db.all<{ product_id: string; quantity: number }>(
+      `SELECT product_id, quantity FROM sale_items WHERE sale_id = ?`, [id]
+    )
+
+    // Estorna estoque de cada item
+    for (const item of items) {
+      await db.run(
+        `UPDATE products SET stock = stock + ?, updated_at = ${sql.now()} WHERE id = ?`,
+        [item.quantity, item.product_id]
+      )
+    }
+
+    // Marca venda como cancelada
+    await db.run(
+      `UPDATE sales SET status = 'canceled', updated_at = ${sql.now()} WHERE id = ?`,
+      [id]
+    )
+
+    // Remove lançamento financeiro vinculado
+    await db.run(
+      `DELETE FROM financial_transactions WHERE sale_id = ?`,
+      [id]
+    )
+
+    res.json({ message: 'Venda cancelada e estoque estornado.' })
+  } catch (err) {
+    console.error('[sales/cancel] Erro:', err)
     res.status(500).json({ error: 'Erro interno.' })
   }
 })

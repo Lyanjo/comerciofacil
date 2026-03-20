@@ -1,13 +1,36 @@
-﻿import { useState, useEffect } from 'react'
-import { Users, UserCheck, UserX, Key, Loader2, UserPlus, Receipt, TrendingUp, Settings, DollarSign, ChevronDown, ChevronUp } from 'lucide-react'
+﻿import { useState, useEffect, useMemo } from 'react'
+import { Users, UserCheck, UserX, Key, Loader2, UserPlus, Receipt, TrendingUp, Settings, DollarSign, ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useNavigate } from 'react-router-dom'
 import { resellerService } from '../../services/resellerService'
-import type { ResellerDashboard } from '../../services/resellerService'
+import type { ResellerDashboard, ClientRevenue } from '../../services/resellerService'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 const SHOW_LIMIT = 5
+
+type SortKey = 'name' | 'price' | 'estimated'
+type SortDir = 'asc' | 'desc'
+
+function SortTh({ label, sk, current, dir, onSort, align = 'right' }: {
+  label: string; sk: SortKey; current: SortKey; dir: SortDir
+  onSort: (k: SortKey) => void; align?: 'left' | 'right' | 'center'
+}) {
+  const active = current === sk
+  return (
+    <th
+      className={`py-2 px-3 text-${align} text-gray-500 font-medium cursor-pointer select-none hover:text-gray-700 whitespace-nowrap`}
+      onClick={() => onSort(sk)}
+    >
+      <span className={`inline-flex items-center gap-1 ${align === 'right' ? 'justify-end' : 'justify-start'} w-full`}>
+        {label}
+        {active
+          ? dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />
+          : <ChevronsUpDown size={13} className="opacity-30" />}
+      </span>
+    </th>
+  )
+}
 
 export default function ResellerDashboardPage() {
   const user = useAuthStore((s) => s.user)
@@ -15,10 +38,30 @@ export default function ResellerDashboardPage() {
   const [data, setData] = useState<ResellerDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [showAllClients, setShowAllClients] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey>('name')
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
 
   useEffect(() => {
     resellerService.getDashboard().then(setData).finally(() => setLoading(false))
   }, [])
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const activeRevenue = useMemo<ClientRevenue[]>(() => {
+    const list = (data?.clientsRevenue ?? []).filter((c) => c.active)
+    return [...list].sort((a, b) => {
+      let va: string | number, vb: string | number
+      if (sortKey === 'name')       { va = a.name.toLowerCase(); vb = b.name.toLowerCase() }
+      else if (sortKey === 'price') { va = a.price ?? -1; vb = b.price ?? -1 }
+      else                          { va = a.estimated; vb = b.estimated }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [data, sortKey, sortDir])
 
   if (loading) {
     return <div className="flex items-center justify-center py-24 text-gray-400 gap-2"><Loader2 size={24} className="animate-spin" />Carregando...</div>
@@ -28,8 +71,9 @@ export default function ResellerDashboardPage() {
     ? Math.round((data.usedLicenses / data.totalLicenses) * 100)
     : 0
 
-  const activeRevenue = (data?.clientsRevenue ?? []).filter((c) => c.active)
   const visibleClients = showAllClients ? activeRevenue : activeRevenue.slice(0, SHOW_LIMIT)
+  const hasAnyPrice = activeRevenue.some((c) => c.price != null)
+  const estimatedReceivable = data?.estimatedReceivable ?? 0
 
   return (
     <div className="space-y-6">
@@ -73,7 +117,6 @@ export default function ResellerDashboardPage() {
 
       {/* Fatura + Preço ao cliente + Receita a receber */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Fatura do mês */}
         <div className="card border-l-4 border-l-orange-400">
           <div className="flex items-center gap-2 mb-3">
             <Receipt size={18} className="text-orange-500" />
@@ -91,7 +134,6 @@ export default function ResellerDashboardPage() {
           )}
         </div>
 
-        {/* Seu preço ao cliente */}
         <div className="card border-l-4 border-l-indigo-400">
           <div className="flex items-center gap-2 mb-3">
             <TrendingUp size={18} className="text-indigo-500" />
@@ -115,7 +157,6 @@ export default function ResellerDashboardPage() {
           )}
         </div>
 
-        {/* Receita a receber */}
         <div className="card border-l-4 border-l-green-400">
           <div className="flex items-center gap-2 mb-3">
             <DollarSign size={18} className="text-green-500" />
@@ -126,22 +167,23 @@ export default function ResellerDashboardPage() {
               <span className="text-2xl font-bold text-gray-400">••••••</span>
               <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Oculto</span>
             </div>
-          ) : (data?.estimatedReceivable ?? 0) > 0 ? (
+          ) : hasAnyPrice ? (
             <>
-              <p className="text-3xl font-bold text-green-600">{fmt(data!.estimatedReceivable)}</p>
+              <p className="text-3xl font-bold text-green-600">{fmt(estimatedReceivable)}</p>
               <p className="text-xs text-gray-400 mt-1">
-                {data!.activeClients} cliente{data!.activeClients !== 1 ? 's' : ''} ativo{data!.activeClients !== 1 ? 's' : ''} com preço definido
+                {activeRevenue.filter((c) => c.price != null).length} cliente{activeRevenue.filter((c) => c.price != null).length !== 1 ? 's' : ''} com preço definido
               </p>
             </>
           ) : (
             <div className="text-sm text-gray-400 italic">
-              Configure os preços dos clientes para ver a estimativa.
+              Configure os preços dos clientes.{' '}
+              <button onClick={() => navigate('/gestor/configuracoes')} className="text-green-600 hover:underline">Configurar</button>
             </div>
           )}
         </div>
       </div>
 
-      {/* Receita a receber por cliente */}
+      {/* Tabela A Receber por Cliente */}
       {!data?.priceHidden && activeRevenue.length > 0 && (
         <div className="card">
           <div className="flex items-center gap-2 mb-4">
@@ -153,8 +195,9 @@ export default function ResellerDashboardPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left py-2 px-3 text-gray-500 font-medium">Cliente</th>
-                  <th className="text-right py-2 px-3 text-gray-500 font-medium">Mensalidade</th>
+                  <SortTh label="Cliente"     sk="name"      current={sortKey} dir={sortDir} onSort={handleSort} align="left" />
+                  <SortTh label="Mensalidade" sk="price"     current={sortKey} dir={sortDir} onSort={handleSort} />
+                  <SortTh label="A Receber"   sk="estimated" current={sortKey} dir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody>
@@ -163,16 +206,21 @@ export default function ResellerDashboardPage() {
                     <td className="py-2.5 px-3 text-gray-800">{c.name}</td>
                     <td className="py-2.5 px-3 text-right">
                       {c.price != null
-                        ? <span className="font-semibold text-green-600">{fmt(c.price)}</span>
+                        ? <span className="text-gray-700">{fmt(c.price)}</span>
                         : <span className="text-gray-400 italic text-xs">sem preço</span>}
+                    </td>
+                    <td className="py-2.5 px-3 text-right">
+                      {c.estimated > 0
+                        ? <span className="font-semibold text-green-600">{fmt(c.estimated)}</span>
+                        : <span className="text-gray-400 text-xs">—</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-200 bg-green-50">
-                  <td className="py-3 px-3 font-semibold text-gray-700">Total</td>
-                  <td className="py-3 px-3 text-right font-bold text-green-600">{fmt(data?.estimatedReceivable ?? 0)}</td>
+                  <td className="py-3 px-3 font-semibold text-gray-700" colSpan={2}>Total</td>
+                  <td className="py-3 px-3 text-right font-bold text-green-600">{fmt(estimatedReceivable)}</td>
                 </tr>
               </tfoot>
             </table>

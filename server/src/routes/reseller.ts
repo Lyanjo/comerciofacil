@@ -50,7 +50,7 @@ router.get('/dashboard', async (req: AuthRequest, res: Response) => {
     const priceHidden = !!(reseller.price_hidden as any)
 
     const clientsRevenue = clientsRaw.map((c) => {
-      const effectivePrice = c.client_price ?? resellerPriceVal
+      const effectivePrice = c.client_price != null ? Number(c.client_price) : (resellerPriceVal != null ? Number(resellerPriceVal) : null)
       return {
         id: c.id,
         name: c.name,

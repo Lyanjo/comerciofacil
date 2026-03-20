@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
-import { History, ShoppingBag, Loader2, SlidersHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { History, ShoppingBag, Loader2, SlidersHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown, XCircle } from 'lucide-react'
 import { saleService } from '../../services/saleService'
 import type { SaleWithItems } from '../../services/saleService'
 
@@ -41,10 +41,26 @@ export default function SalesHistoryPage() {
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [cancelingId, setCancelingId] = useState<string | null>(null)
 
   useEffect(() => {
     saleService.list().then(setSales).finally(() => setLoading(false))
   }, [])
+
+  const reload = () => saleService.list().then(setSales)
+
+  const handleCancel = async (saleId: string) => {
+    if (!confirm('Cancelar esta venda? O estoque será estornado e o lançamento financeiro removido.')) return
+    setCancelingId(saleId)
+    try {
+      await saleService.cancel(saleId)
+      await reload()
+    } catch {
+      alert('Erro ao cancelar a venda.')
+    } finally {
+      setCancelingId(null)
+    }
+  }
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
@@ -264,15 +280,34 @@ export default function SalesHistoryPage() {
       ) : (
         <div className="space-y-3">
           {processed.map((sale) => (
-            <div key={sale.id} className="card">
+            <div key={sale.id} className={`card ${sale.status === 'canceled' ? 'opacity-60 bg-gray-50' : ''}`}>
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <p className="font-semibold text-gray-800">Venda #{String(sale.id).slice(0, 8).toUpperCase()}</p>
+                  <p className="font-semibold text-gray-800 flex items-center gap-2">
+                    Venda #{String(sale.id).slice(0, 8).toUpperCase()}
+                    {sale.status === 'canceled' && (
+                      <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full font-normal">Cancelada</span>
+                    )}
+                  </p>
                   <p className="text-xs text-gray-400">{fmtDate(sale.createdAt)}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-emerald-600">{fmt(sale.total)}</p>
-                  <span className="badge-blue">{PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod}</span>
+                <div className="flex items-start gap-3">
+                  <div className="text-right">
+                    <p className={`text-lg font-bold ${sale.status === 'canceled' ? 'line-through text-gray-400' : 'text-emerald-600'}`}>{fmt(sale.total)}</p>
+                    <span className="badge-blue">{PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod}</span>
+                  </div>
+                  {sale.status !== 'canceled' && (
+                    <button
+                      onClick={() => handleCancel(sale.id)}
+                      disabled={cancelingId === sale.id}
+                      title="Cancelar venda"
+                      className="mt-0.5 p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                    >
+                      {cancelingId === sale.id
+                        ? <Loader2 size={16} className="animate-spin" />
+                        : <XCircle size={16} />}
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="border-t border-gray-50 pt-2 space-y-1">

@@ -40,4 +40,8 @@ export const saleService = {
       })),
     }))
   },
+
+  cancel: async (saleId: string): Promise<void> => {
+    await api.delete(`/commerce/sales/${saleId}`)
+  },
 }
