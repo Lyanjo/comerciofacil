@@ -9,7 +9,7 @@ export const config = {
   isProduction,
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'dev-secret',
+    secret: process.env.JWT_SECRET || 'dev-secret-troque-em-producao',
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
 

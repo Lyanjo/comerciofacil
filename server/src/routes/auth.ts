@@ -62,7 +62,7 @@ router.post('/login', async (req, res: Response) => {
     }
 
     const token = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'],
+      expiresIn: (config.jwt.expiresIn || '7d') as jwt.SignOptions['expiresIn'],
     })
 
     res.json({
