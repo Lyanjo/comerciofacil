@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.local
+.DS_Store
+
+# Banco SQLite local (não sobe para o repo)
+data/
