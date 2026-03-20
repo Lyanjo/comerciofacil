@@ -16,9 +16,14 @@ import commerceRoutes from './routes/commerce'
 const app = express()
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-// Aceita a origem configurada + localhost para desenvolvimento
+// Aceita a origem configurada + origens extras separadas por vírgula + localhost
 const allowedOrigins = [
-  config.cors.origin,
+  // FRONTEND_URL pode conter múltiplas origens separadas por vírgula
+  ...(config.cors.origin ? config.cors.origin.split(',').map((s) => s.trim()) : []),
+  // Domínio customizado (sempre permitido)
+  'https://comerciofacil.questsistemas.com.br',
+  // GitHub Pages (sempre permitido)
+  'https://lyanjo.github.io',
   'http://localhost:5173',
   'http://localhost:4173',
 ].filter(Boolean)
