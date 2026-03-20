@@ -132,12 +132,14 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
 
     const db = getDb()
     const saleId = uuidv4()
-    const disc = discount || 0
+    const disc = Number(discount) || 0
 
     // Calcula totais e busca nomes dos produtos
     let subtotal = 0
     const saleItems = []
     for (const item of items) {
+      const unitPrice = Number(item.unit_price)
+      const qty = Number(item.quantity)
       const product = await db.get<{ name: string; stock: number; sale_price: number }>(
         `SELECT name, stock, sale_price FROM products WHERE id = ? AND commerce_id = ?`,
         [item.product_id, req.user!.commerceId]
@@ -146,13 +148,13 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
         res.status(404).json({ error: `Produto ${item.product_id} não encontrado.` })
         return
       }
-      if (product.stock < item.quantity) {
+      if (product.stock < qty) {
         res.status(422).json({ error: `Estoque insuficiente para "${product.name}".` })
         return
       }
-      const totalPrice = item.quantity * item.unit_price
+      const totalPrice = qty * unitPrice
       subtotal += totalPrice
-      saleItems.push({ id: uuidv4(), product_id: item.product_id, product_name: product.name, quantity: item.quantity, unit_price: item.unit_price, total_price: totalPrice })
+      saleItems.push({ id: uuidv4(), product_id: item.product_id, product_name: product.name, quantity: qty, unit_price: unitPrice, total_price: totalPrice })
     }
 
     const total = subtotal - disc
@@ -180,7 +182,7 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
     // Lança automaticamente no financeiro com o mesmo ID curto da venda
     await db.run(
       `INSERT INTO financial_transactions (id, commerce_id, type, category, description, amount, date, sale_id)
-       VALUES (?, ?, 'income', 'Venda', ?, ${sql.now()}, ?)`,
+       VALUES (?, ?, 'income', 'Venda', ?, ?, ${sql.now()}, ?)`,
       [uuidv4(), req.user!.commerceId, `Venda #${saleId.slice(0, 8).toUpperCase()}`, total, saleId]
     )
 
