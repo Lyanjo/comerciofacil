@@ -35,7 +35,7 @@ function App() {
   }, [loadFromStorage])
 
   return (
-    <BrowserRouter basename="/comerciofacil">
+    <BrowserRouter basename="/">
       <Routes>
         {/* Pública */}
         <Route path="/login" element={<LoginPage />} />

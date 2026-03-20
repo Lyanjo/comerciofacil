@@ -10,8 +10,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  // GitHub Pages: https://lyanjo.github.io/comerciofacil/
-  base: '/comerciofacil/',
+  // Domínio customizado → serve na raiz. Sem subpath.
+  base: '/',
   server: {
     port: 5173,
     proxy: {
