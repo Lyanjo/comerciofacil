@@ -182,7 +182,7 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
     // Lança automaticamente no financeiro com o mesmo ID curto da venda
     await db.run(
       `INSERT INTO financial_transactions (id, commerce_id, type, category, description, amount, date, sale_id)
-       VALUES (?, ?, 'income', 'Venda', ?, ?, ${sql.now()}, ?)`,
+       VALUES (?, ?, 'income', 'sale', ?, ?, ${sql.now()}, ?)`,
       [uuidv4(), req.user!.commerceId, `Venda #${saleId.slice(0, 8).toUpperCase()}`, total, saleId]
     )
 
