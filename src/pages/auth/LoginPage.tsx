@@ -108,15 +108,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Hint de usuários dev */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <p className="text-xs font-semibold text-blue-700 mb-2">🔧 Acessos de desenvolvimento:</p>
-            <div className="text-xs text-blue-600 space-y-1">
-              <p><strong>Admin:</strong> admin@comerciofacil.com / admin123</p>
-              <p><strong>Gestor:</strong> joao@revendedor.com / rev123</p>
-              <p><strong>Comércio:</strong> maria@loja.com / loja123</p>
-            </div>
-          </div>
+
         </div>
 
         <p className="text-center text-primary-200 text-sm mt-6">
