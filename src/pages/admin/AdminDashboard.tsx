@@ -47,6 +47,20 @@ export default function AdminDashboard() {
     adminService.getStats().then(setStats).finally(() => setLoading(false))
   }, [])
 
+  const revenue = stats?.revenueByReseller ?? []
+  const SHOW_LIMIT = 5
+
+  const sortedRevenue = useMemo(() => {
+    return [...revenue].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortKey === 'activeClients') cmp = a.activeClients - b.activeClients
+      else if (sortKey === 'monthlyFee') cmp = a.monthlyFee - b.monthlyFee
+      else cmp = a.estimated - b.estimated
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [revenue, sortKey, sortDir])
+
   if (loading) {
     return <div className="flex items-center justify-center py-24 text-gray-400 gap-2"><Loader2 size={24} className="animate-spin" />Carregando...</div>
   }
@@ -62,20 +76,6 @@ export default function AdminDashboard() {
     ? Math.round((stats.activeResellers / stats.totalResellers) * 100) : 0
   const taxaComercios = stats && stats.totalCommerces > 0
     ? Math.round((stats.activeCommerces / stats.totalCommerces) * 100) : 0
-
-  const revenue = stats?.revenueByReseller ?? []
-  const SHOW_LIMIT = 5
-
-  const sortedRevenue = useMemo(() => {
-    return [...revenue].sort((a, b) => {
-      let cmp = 0
-      if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
-      else if (sortKey === 'activeClients') cmp = a.activeClients - b.activeClients
-      else if (sortKey === 'monthlyFee') cmp = a.monthlyFee - b.monthlyFee
-      else cmp = a.estimated - b.estimated
-      return sortDir === 'asc' ? cmp : -cmp
-    })
-  }, [revenue, sortKey, sortDir])
 
   const visibleRevenue = showAllRevenue ? sortedRevenue : sortedRevenue.slice(0, SHOW_LIMIT)
 
