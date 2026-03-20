@@ -2,12 +2,17 @@ import axios from 'axios'
 
 const isDev = import.meta.env.DEV
 
-const BASE_URL = isDev
-  ? 'http://localhost:3333/api'
-  : (import.meta.env.VITE_API_URL as string) || 'https://seu-backend.railway.app/api'
+// Garante que a URL base sempre termine com /api
+function buildBaseUrl(): string {
+  if (isDev) return 'http://localhost:3333/api'
+  const raw = (import.meta.env.VITE_API_URL as string) || 'https://seu-backend.railway.app/api'
+  // Remove barra final e adiciona /api se não tiver
+  const clean = raw.replace(/\/+$/, '')
+  return clean.endsWith('/api') ? clean : `${clean}/api`
+}
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: buildBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
