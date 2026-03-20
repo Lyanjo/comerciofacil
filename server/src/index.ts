@@ -1,8 +1,11 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import bcrypt from 'bcryptjs'
+import { v4 as uuidv4 } from 'uuid'
 import { config } from './config'
 import { runMigrations } from './database/migrate'
+import { getDb } from './database/db'
 import { errorHandler } from './middleware/errorHandler'
 
 import authRoutes from './routes/auth'
@@ -42,6 +45,46 @@ app.use('/api/commerce', commerceRoutes)
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', env: config.nodeEnv, timestamp: new Date().toISOString() })
+})
+
+// ─── Setup inicial (endpoint temporário — só funciona com SETUP_KEY definida) ──
+// Para usar: POST /api/setup  com header  x-setup-key: <valor de SETUP_KEY>
+// Após criar o admin, remova a variável SETUP_KEY no Railway para desativar.
+app.post('/api/setup', async (req, res) => {
+  const setupKey = process.env.SETUP_KEY
+  if (!setupKey) {
+    return res.status(404).json({ error: 'Endpoint não disponível.' })
+  }
+  if (req.headers['x-setup-key'] !== setupKey) {
+    return res.status(403).json({ error: 'Chave inválida.' })
+  }
+
+  try {
+    const db = getDb()
+    const { email, password, name } = req.body as { email?: string; password?: string; name?: string }
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: 'Campos obrigatórios: email, password, name.' })
+    }
+
+    const existing = await db.get<{ id: string }>(`SELECT id FROM users WHERE email = ?`, [email])
+    if (existing) {
+      return res.status(409).json({ error: `Usuário ${email} já existe.` })
+    }
+
+    const hash = await bcrypt.hash(password, 12)
+    const id   = uuidv4()
+    await db.run(
+      `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
+      [id, name, email, hash, 'admin']
+    )
+
+    console.log(`[Setup] ✅ Admin criado: ${email}`)
+    return res.status(201).json({ message: `Admin ${email} criado com sucesso!` })
+  } catch (err) {
+    console.error('[Setup] Erro:', err)
+    return res.status(500).json({ error: 'Erro interno ao criar admin.' })
+  }
 })
 
 // ─── Error handler ────────────────────────────────────────────────────────────
