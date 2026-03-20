@@ -67,4 +67,30 @@ export const adminService = {
   updateMonthlyFee: async (resellerId: string, monthly_fee: number): Promise<void> => {
     await api.patch(`/admin/resellers/${resellerId}/fee`, { monthly_fee })
   },
+
+  // ─── Limpeza ───────────────────────────────────────────────────────────────
+  cleanupListResellers: async (): Promise<{ id: string; name: string; email: string; total_clients: number }[]> => {
+    const { data } = await api.get('/admin/cleanup/resellers')
+    return data.resellers
+  },
+
+  cleanupListClients: async (resellerId: string): Promise<{ id: string; name: string; email: string; status: string; created_at: string }[]> => {
+    const { data } = await api.get(`/admin/cleanup/resellers/${resellerId}/clients`)
+    return data.clients
+  },
+
+  cleanupClient: async (clientId: string): Promise<string> => {
+    const { data } = await api.delete(`/admin/cleanup/client/${clientId}`)
+    return data.message
+  },
+
+  cleanupReseller: async (resellerId: string): Promise<string> => {
+    const { data } = await api.delete(`/admin/cleanup/reseller/${resellerId}`)
+    return data.message
+  },
+
+  cleanupAll: async (): Promise<string> => {
+    const { data } = await api.delete('/admin/cleanup/all')
+    return data.message
+  },
 }

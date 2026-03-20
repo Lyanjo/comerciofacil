@@ -13,6 +13,7 @@ import LoginPage from './pages/auth/LoginPage'
 // ─── Páginas Admin ────────────────────────────────────────────────────────────
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminResellers from './pages/admin/AdminResellers'
+import AdminCleanup from './pages/admin/AdminCleanup'
 
 // ─── Páginas Revendedor ───────────────────────────────────────────────────────
 import ResellerDashboard from './pages/reseller/ResellerDashboard'
@@ -46,6 +47,7 @@ function App() {
           <Route element={<AdminLayout />}>
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/revendedores" element={<AdminResellers />} />
+            <Route path="/admin/limpeza" element={<AdminCleanup />} />
           </Route>
         </Route>
 

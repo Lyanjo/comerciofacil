@@ -172,4 +172,136 @@ router.patch('/resellers/:id/fee', async (req, res: Response) => {
   }
 })
 
+// ─── Limpeza de dados ─────────────────────────────────────────────────────────
+
+// GET /api/admin/cleanup/resellers — lista gestores com contagem de clientes (para tela de limpeza)
+router.get('/cleanup/resellers', async (_req, res: Response) => {
+  try {
+    const db = getDb()
+    const resellers = await db.all(`
+      SELECT r.id, u.name, u.email,
+             COUNT(c.id) as total_clients
+      FROM resellers r
+      JOIN users u ON u.id = r.user_id
+      LEFT JOIN commerces c ON c.reseller_id = r.id
+      GROUP BY r.id, u.name, u.email
+      ORDER BY u.name ASC
+    `)
+    res.json({ resellers })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
+// GET /api/admin/cleanup/resellers/:id/clients — lista clientes de um gestor
+router.get('/cleanup/resellers/:id/clients', async (req, res: Response) => {
+  try {
+    const { id } = req.params
+    const db = getDb()
+    const clients = await db.all(`
+      SELECT c.id, u.name, u.email, c.status, c.created_at
+      FROM commerces c
+      JOIN users u ON u.id = c.user_id
+      WHERE c.reseller_id = ?
+      ORDER BY u.name ASC
+    `, [id])
+    res.json({ clients })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
+// DELETE /api/admin/cleanup/client/:id — deleta um cliente e todos seus dados
+router.delete('/cleanup/client/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const db = getDb()
+
+    // Busca o commerce e seu user_id
+    const commerce = await db.get<{ user_id: string }>(
+      `SELECT user_id FROM commerces WHERE id = ?`, [id]
+    )
+    if (!commerce) { res.status(404).json({ error: 'Cliente não encontrado.' }); return }
+
+    // Deleta em cascata
+    await db.run(`DELETE FROM financial_transactions WHERE commerce_id = ?`, [id])
+    await db.run(`DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE commerce_id = ?)`, [id])
+    await db.run(`DELETE FROM sales WHERE commerce_id = ?`, [id])
+    await db.run(`DELETE FROM products WHERE commerce_id = ?`, [id])
+    await db.run(`DELETE FROM commerces WHERE id = ?`, [id])
+    await db.run(`DELETE FROM users WHERE id = ?`, [commerce.user_id])
+
+    res.json({ message: 'Cliente deletado com sucesso.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
+// DELETE /api/admin/cleanup/reseller/:id — deleta gestor, todos os clientes e dados
+router.delete('/cleanup/reseller/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params
+    const db = getDb()
+
+    // Busca user_id do gestor
+    const reseller = await db.get<{ user_id: string }>(
+      `SELECT user_id FROM resellers WHERE id = ?`, [id]
+    )
+    if (!reseller) { res.status(404).json({ error: 'Gestor não encontrado.' }); return }
+
+    // Busca todos os clientes do gestor
+    const clients = await db.all<{ id: string; user_id: string }>(
+      `SELECT c.id, c.user_id FROM commerces c WHERE c.reseller_id = ?`, [id]
+    )
+
+    // Deleta dados de cada cliente em cascata
+    for (const client of clients) {
+      await db.run(`DELETE FROM financial_transactions WHERE commerce_id = ?`, [client.id])
+      await db.run(`DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE commerce_id = ?)`, [client.id])
+      await db.run(`DELETE FROM sales WHERE commerce_id = ?`, [client.id])
+      await db.run(`DELETE FROM products WHERE commerce_id = ?`, [client.id])
+      await db.run(`DELETE FROM commerces WHERE id = ?`, [client.id])
+      await db.run(`DELETE FROM users WHERE id = ?`, [client.user_id])
+    }
+
+    // Deleta o gestor e seu usuário
+    await db.run(`DELETE FROM resellers WHERE id = ?`, [id])
+    await db.run(`DELETE FROM users WHERE id = ?`, [reseller.user_id])
+
+    res.json({ message: `Gestor e ${clients.length} cliente(s) deletados com sucesso.` })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
+// DELETE /api/admin/cleanup/all — limpa TUDO exceto o admin logado
+router.delete('/cleanup/all', async (req: AuthRequest, res: Response) => {
+  try {
+    const db = getDb()
+    const adminUserId = req.user!.id
+
+    // Busca todos os clientes
+    const clients = await db.all<{ id: string; user_id: string }>(`SELECT id, user_id FROM commerces`)
+    for (const client of clients) {
+      await db.run(`DELETE FROM financial_transactions WHERE commerce_id = ?`, [client.id])
+      await db.run(`DELETE FROM sale_items WHERE sale_id IN (SELECT id FROM sales WHERE commerce_id = ?)`, [client.id])
+      await db.run(`DELETE FROM sales WHERE commerce_id = ?`, [client.id])
+      await db.run(`DELETE FROM products WHERE commerce_id = ?`, [client.id])
+    }
+    await db.run(`DELETE FROM commerces`)
+    await db.run(`DELETE FROM resellers`)
+    // Deleta todos os usuários EXCETO o admin logado
+    await db.run(`DELETE FROM users WHERE id != ?`, [adminUserId])
+
+    res.json({ message: 'Sistema limpo. Apenas seu acesso de admin foi mantido.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
 export default router

@@ -1,11 +1,15 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Users, LayoutDashboard, LogOut, Menu, X } from 'lucide-react'
+import { Users, LayoutDashboard, LogOut, Menu, X, ShieldAlert } from 'lucide-react'
 import { useState } from 'react'
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/admin/revendedores', label: 'Gestores', icon: Users },
+]
+
+const dangerItems = [
+  { to: '/admin/limpeza', label: 'Limpeza de Dados', icon: ShieldAlert },
 ]
 
 export default function AdminLayout() {
@@ -75,6 +79,28 @@ export default function AdminLayout() {
                 {item.label}
               </NavLink>
             ))}
+
+            {/* Seção de perigo */}
+            <div className="pt-4 mt-4 border-t border-gray-100">
+              <p className="px-4 pb-1 text-xs text-gray-400 font-semibold uppercase tracking-wide">Administração</p>
+              {dangerItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'bg-red-50 text-red-600 border border-red-100'
+                        : 'text-red-400 hover:bg-red-50 hover:text-red-600'
+                    }`
+                  }
+                >
+                  <item.icon size={18} />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           </nav>
         </aside>
 
