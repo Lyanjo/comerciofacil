@@ -77,8 +77,8 @@ router.post('/login', async (req, res: Response) => {
       },
     })
   } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Erro interno.' })
+    console.error('[auth/login] Erro:', err)
+    res.status(500).json({ error: 'Erro interno.', detail: err instanceof Error ? err.message : String(err) })
   }
 })
 
