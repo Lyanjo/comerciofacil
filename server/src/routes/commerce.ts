@@ -1,6 +1,6 @@
 import { Router, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
-import { getDb } from '../database/db'
+import { getDb, sql } from '../database/db'
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth'
 
 const router = Router()
@@ -43,7 +43,7 @@ router.post('/products', async (req: AuthRequest, res: Response) => {
     const id = uuidv4()
     await db.run(
       `INSERT INTO products (id, commerce_id, name, description, barcode, category, sale_price, cost_price, unit, stock, min_stock, is_active)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${sql.boolVal(true)})`,
       [id, req.user!.commerceId, name, description || null, barcode || null, category || null,
        sale_price, cost_price || null, unit, stock || 0, min_stock || null]
     )
@@ -86,7 +86,7 @@ router.put('/products/:id', async (req: AuthRequest, res: Response) => {
     const is_active   = body.is_active   !== undefined ? body.is_active   : Boolean(current.is_active)
 
     await db.run(
-      `UPDATE products SET name=?, description=?, barcode=?, category=?, sale_price=?, cost_price=?, unit=?, stock=?, min_stock=?, is_active=?, updated_at=datetime('now')
+      `UPDATE products SET name=?, description=?, barcode=?, category=?, sale_price=?, cost_price=?, unit=?, stock=?, min_stock=?, is_active=?, updated_at=${sql.now()}
        WHERE id=? AND commerce_id=?`,
       [name, description || null, barcode || null, category || null, sale_price,
        cost_price || null, unit, stock, min_stock || null, is_active ? 1 : 0, id, req.user!.commerceId]
@@ -105,7 +105,7 @@ router.delete('/products/:id', async (req: AuthRequest, res: Response) => {
     const { id } = req.params
     const db = getDb()
     await db.run(
-      `UPDATE products SET is_active = 0 WHERE id = ? AND commerce_id = ?`,
+      `UPDATE products SET is_active = ${sql.boolVal(false)} WHERE id = ? AND commerce_id = ?`,
       [id, req.user!.commerceId]
     )
     res.json({ message: 'Produto desativado.' })
@@ -172,7 +172,7 @@ router.post('/sales', async (req: AuthRequest, res: Response) => {
         [si.id, saleId, si.product_id, si.product_name, si.quantity, si.unit_price, si.total_price]
       )
       await db.run(
-        `UPDATE products SET stock = stock - ?, updated_at = datetime('now') WHERE id = ?`,
+        `UPDATE products SET stock = stock - ?, updated_at = ${sql.now()} WHERE id = ?`,
         [si.quantity, si.product_id]
       )
     }
@@ -196,7 +196,7 @@ router.get('/sales', async (req: AuthRequest, res: Response) => {
   try {
     const db = getDb()
     const sales = await db.all(
-      `SELECT s.*, GROUP_CONCAT(si.product_name || ' x' || si.quantity, ', ') as items_summary
+      `SELECT s.*, ${sql.groupConcat('si.product_name || \' x\' || si.quantity', ', ')} as items_summary
        FROM sales s
        LEFT JOIN sale_items si ON si.sale_id = s.id
        WHERE s.commerce_id = ?
@@ -286,20 +286,20 @@ router.get('/dashboard', async (req: AuthRequest, res: Response) => {
     const [salesToday, salesMonth, stockAlerts, totalProducts] = await Promise.all([
       db.get<{ count: number; total: number }>(
         `SELECT COUNT(*) as count, COALESCE(SUM(total),0) as total FROM sales
-         WHERE commerce_id = ? AND date(created_at) = date('now')`,
+         WHERE commerce_id = ? AND ${sql.dateCast('created_at')} = ${sql.dateToday()}`,
         [req.user!.commerceId]
       ),
       db.get<{ count: number; total: number }>(
         `SELECT COUNT(*) as count, COALESCE(SUM(total),0) as total FROM sales
-         WHERE commerce_id = ? AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now')`,
+         WHERE commerce_id = ? AND ${sql.yearMonth('created_at')} = ${sql.yearMonthNow()}`,
         [req.user!.commerceId]
       ),
       db.get<{ count: number }>(
-        `SELECT COUNT(*) as count FROM products WHERE commerce_id = ? AND min_stock IS NOT NULL AND stock <= min_stock AND is_active = 1`,
+        `SELECT COUNT(*) as count FROM products WHERE commerce_id = ? AND min_stock IS NOT NULL AND stock <= min_stock AND ${sql.isTrue('is_active')}`,
         [req.user!.commerceId]
       ),
       db.get<{ count: number }>(
-        `SELECT COUNT(*) as count FROM products WHERE commerce_id = ? AND is_active = 1`,
+        `SELECT COUNT(*) as count FROM products WHERE commerce_id = ? AND ${sql.isTrue('is_active')}`,
         [req.user!.commerceId]
       ),
     ])

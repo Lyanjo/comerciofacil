@@ -1,7 +1,7 @@
 import { Router, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import bcrypt from 'bcryptjs'
-import { getDb } from '../database/db'
+import { getDb, sql } from '../database/db'
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth'
 
 const router = Router()
@@ -109,7 +109,7 @@ router.get('/stats', async (_req, res: Response) => {
     }>(`
       SELECT
         COUNT(DISTINCT r.id) as total_resellers,
-        COUNT(DISTINCT CASE WHEN r.is_active = 1 THEN r.id END) as active_resellers,
+        COUNT(DISTINCT CASE WHEN ${sql.isTrue('r.is_active')} THEN r.id END) as active_resellers,
         COUNT(DISTINCT c.id) as total_commerces,
         COUNT(DISTINCT CASE WHEN c.status = 'active' THEN c.id END) as active_commerces,
         COALESCE(SUM(CASE WHEN c.status = 'active' THEN r.monthly_fee ELSE 0 END), 0) as estimated_monthly

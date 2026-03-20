@@ -1,7 +1,7 @@
 import { Router, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 import bcrypt from 'bcryptjs'
-import { getDb } from '../database/db'
+import { getDb, sql } from '../database/db'
 import { authMiddleware, requireRole, AuthRequest } from '../middleware/auth'
 
 const router = Router()
@@ -27,7 +27,7 @@ router.get('/dashboard', async (req: AuthRequest, res: Response) => {
         COUNT(*) as total,
         COUNT(CASE WHEN status = 'active' THEN 1 END) as active,
         COUNT(CASE WHEN status = 'canceled' THEN 1 END) as canceled,
-        COUNT(CASE WHEN status = 'active' AND strftime('%Y-%m', created_at) = strftime('%Y-%m', 'now') THEN 1 END) as new_month
+        COUNT(CASE WHEN status = 'active' AND ${sql.yearMonth('created_at')} = ${sql.yearMonthNow()} THEN 1 END) as new_month
       FROM commerces WHERE reseller_id = ?
     `, [reseller.id])
 
@@ -46,7 +46,8 @@ router.get('/dashboard', async (req: AuthRequest, res: Response) => {
     `, [reseller.id])
 
     const resellerPriceVal = reseller.reseller_price ?? null
-    const priceHidden = reseller.price_hidden === 1
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const priceHidden = !!(reseller.price_hidden as any)
 
     const clientsRevenue = clientsRaw.map((c) => {
       const effectivePrice = c.client_price ?? resellerPriceVal
@@ -170,7 +171,7 @@ router.patch('/clients/:id/status', async (req: AuthRequest, res: Response) => {
     )
     if (!reseller) { res.status(404).json({ error: 'Revendedor não encontrado.' }); return }
     await db.run(
-      `UPDATE commerces SET status = ?, updated_at = datetime('now') WHERE id = ? AND reseller_id = ?`,
+      `UPDATE commerces SET status = ?, updated_at = ${sql.now()} WHERE id = ? AND reseller_id = ?`,
       [status, id, reseller.id]
     )
     res.json({ message: 'Status atualizado.' })
@@ -191,7 +192,7 @@ router.patch('/clients/:id/price', async (req: AuthRequest, res: Response) => {
     )
     if (!reseller) { res.status(404).json({ error: 'Revendedor não encontrado.' }); return }
     await db.run(
-      `UPDATE commerces SET client_price = ?, updated_at = datetime('now') WHERE id = ? AND reseller_id = ?`,
+      `UPDATE commerces SET client_price = ?, updated_at = ${sql.now()} WHERE id = ? AND reseller_id = ?`,
       [client_price ?? null, id, reseller.id]
     )
     res.json({ message: 'Preço atualizado.' })
@@ -214,7 +215,8 @@ router.get('/settings', async (req: AuthRequest, res: Response) => {
     if (!reseller) { res.status(404).json({ error: 'Revendedor não encontrado.' }); return }
     res.json({
       resellerPrice: reseller.reseller_price ?? null,
-      priceHidden: reseller.price_hidden === 1,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      priceHidden: !!(reseller.price_hidden as any),
       monthlyFee: reseller.monthly_fee || 0,
     })
   } catch (err) {

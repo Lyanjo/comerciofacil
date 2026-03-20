@@ -121,6 +121,22 @@ function createPostgresDb(): Database {
 // ─── Exporta instância correta ────────────────────────────────────────────────
 let _db: Database | null = null
 
+// Helpers de SQL compatíveis com SQLite e PostgreSQL
+export const sql = {
+  get isPostgres() { return !!process.env.DATABASE_URL },
+  now()    { return this.isPostgres ? 'NOW()'              : "datetime('now')" },
+  dateToday() { return this.isPostgres ? 'CURRENT_DATE'    : "date('now')" },
+  dateCast(col: string) { return this.isPostgres ? `(${col})::date`          : `date(${col})` },
+  yearMonth(col: string) { return this.isPostgres ? `to_char(${col}, 'YYYY-MM')` : `strftime('%Y-%m', ${col})` },
+  yearMonthNow() { return this.isPostgres ? `to_char(NOW(), 'YYYY-MM')`      : `strftime('%Y-%m', 'now')` },
+  isTrue(col: string) { return this.isPostgres ? `(${col} = TRUE OR ${col} = '1')` : `${col} = 1` },
+  isFalse(col: string) { return this.isPostgres ? `(${col} = FALSE OR ${col} = '0')` : `${col} = 0` },
+  boolVal(v: boolean) { return this.isPostgres ? (v ? 'TRUE' : 'FALSE') : (v ? 1 : 0) },
+  groupConcat(col: string, sep: string) {
+    return this.isPostgres ? `STRING_AGG(${col}, '${sep}')` : `GROUP_CONCAT(${col}, '${sep}')`
+  },
+}
+
 export async function initDb(): Promise<Database> {
   if (!_db) {
     if (config.db.usePostgres) {
