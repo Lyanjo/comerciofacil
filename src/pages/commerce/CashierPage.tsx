@@ -59,7 +59,10 @@ export default function CashierPage() {
 
   // Adiciona produto pelo código de barras
   const addByBarcode = useCallback((code: string) => {
+    console.log('[Barcode] addByBarcode chamado com código:', code)
+    console.log('[Barcode] produtos disponíveis:', productsRef.current.map(p => ({ name: p.name, barcode: p.barcode })))
     const found = productsRef.current.find((p) => p.barcode === code)
+    console.log('[Barcode] produto encontrado:', found ?? 'NENHUM')
     if (!found) {
       beep(false)
       showFeedback(`Código não encontrado: ${code}`, false)
@@ -386,20 +389,25 @@ export default function CashierPage() {
             value={manualCode}
             onChange={(e) => {
               const val = e.target.value.replace(/\D/g, '')
+              console.log('[Barcode] onChange → val:', val, '| length:', val.length)
               setManualCode(val)
               // Dispara automaticamente 80ms após parar de receber dígitos
               if (manualTimerRef.current) clearTimeout(manualTimerRef.current)
               if (val.length >= 8) {
+                console.log('[Barcode] agendando disparo em 80ms para código:', val)
                 manualTimerRef.current = setTimeout(() => {
+                  console.log('[Barcode] DISPARANDO addByBarcode com:', val)
                   addByBarcode(val)
                   setManualCode('')
                 }, 80)
               }
             }}
             onKeyDown={(e) => {
+              console.log('[Barcode] onKeyDown → key:', e.key, '| manualCode:', manualCode)
               // Enter também dispara imediatamente (compatibilidade)
               if (e.key === 'Enter' && manualCode.length >= 8) {
                 if (manualTimerRef.current) clearTimeout(manualTimerRef.current)
+                console.log('[Barcode] Enter pressionado — disparando com:', manualCode)
                 addByBarcode(manualCode)
                 setManualCode('')
               }
