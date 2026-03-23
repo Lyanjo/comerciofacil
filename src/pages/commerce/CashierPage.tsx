@@ -83,25 +83,29 @@ export default function CashierPage() {
     showFeedback(`✓ ${found.name}`, true)
   }, [beep, showFeedback])
 
-  // Listener de teclado para capturar leituras do scanner USB/bluetooth.
-  // Scanners emitem os dígitos em sequência muito rápida (~10-50ms entre teclas).
-  // A estratégia: acumula dígitos e dispara automaticamente após 80ms de silêncio
-  // (tempo suficiente para o scanner terminar, mas curto demais para digitação humana).
-  // Enter também dispara caso o scanner envie (compatibilidade).
+  // ── Scanner USB/Bluetooth ─────────────────────────────────────────────────
+  // Scanners emitem cada dígito com ~5-20ms de intervalo e terminam com Enter.
+  // O listener fica ativo em TODA a página — o operador só aponta o leitor e
+  // o produto entra no carrinho sem precisar abrir nada.
+  // Regra: ignora eventos quando qualquer <input> / <textarea> tiver foco
+  // (evita conflito com o campo de busca e o modal de digitação manual).
   useEffect(() => {
-    if (!scannerOpen) return
     const handleKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA'
+
       if (e.key === 'Enter') {
-        // Disparo imediato via Enter
+        if (isTyping) return                         // deixa o input tratar o Enter
         const code = barcodeBufferRef.current.trim()
         barcodeBufferRef.current = ''
         if (barcodeTimerRef.current) { clearTimeout(barcodeTimerRef.current); barcodeTimerRef.current = null }
         if (code.length >= 8) addByBarcode(code)
         return
       }
-      if (e.key.length === 1) {
+
+      if (e.key.length === 1 && !isTyping) {
         barcodeBufferRef.current += e.key
-        // Reinicia o timer a cada tecla — dispara 80ms após a última tecla
+        // Dispara automaticamente 80 ms após a última tecla
         if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current)
         barcodeTimerRef.current = setTimeout(() => {
           const code = barcodeBufferRef.current.trim()
@@ -113,7 +117,7 @@ export default function CashierPage() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [scannerOpen, addByBarcode])
+  }, [addByBarcode])
 
   useEffect(() => {
     productService.list().then((data) => {
@@ -232,7 +236,7 @@ export default function CashierPage() {
           />
           <button
             onClick={() => setScannerOpen(true)}
-            title="Ler código de barras (ou use leitor USB conectado)"
+            title="Scanner USB ativo — aponte o leitor a qualquer momento. Clique para digitar manualmente."
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap transition-colors
               ${scanFeedback?.ok === true  ? 'bg-green-100 border-green-400 text-green-700' :
                 scanFeedback?.ok === false ? 'bg-red-100  border-red-400  text-red-700'  :
@@ -355,21 +359,21 @@ export default function CashierPage() {
       </div>
     </div>
 
-    {/* Modal do leitor de codigo de barras */}
+    {/* Modal — entrada MANUAL de código (para quem não tem leitor físico) */}
     {scannerOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2 text-emerald-600">
               <Barcode size={20} />
-              <h2 className="font-bold text-gray-800 text-lg">Codigo de Barras</h2>
+              <h2 className="font-bold text-gray-800 text-lg">Código de Barras</h2>
             </div>
             <button onClick={() => setScannerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">
               <X size={18} />
             </button>
           </div>
           <p className="text-sm text-gray-500 mb-4">
-            Use o leitor USB/bluetooth (ele digita automaticamente) ou insira o codigo manualmente:
+            Digite o código manualmente e pressione <kbd className="bg-gray-100 px-1 rounded text-xs">Enter</kbd>:
           </p>
           <input
             type="text"
@@ -380,16 +384,16 @@ export default function CashierPage() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 const code = e.currentTarget.value.trim()
-                e.currentTarget.value = ''
-                if (code.length >= 8) addByBarcode(code)
+                if (code.length >= 8) {
+                  addByBarcode(code)
+                  e.currentTarget.value = ''
+                }
               }
             }}
           />
-          <p className="text-xs text-gray-400 mt-3 text-center">
-            Pressione Enter apos digitar ou ao usar o leitor
-          </p>
           {scanFeedback && (
-            <div className={`mt-3 px-3 py-2 rounded-lg text-sm font-medium text-center ${scanFeedback.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            <div className={`mt-3 px-3 py-2 rounded-lg text-sm font-medium text-center
+              ${scanFeedback.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
               {scanFeedback.msg}
             </div>
           )}
