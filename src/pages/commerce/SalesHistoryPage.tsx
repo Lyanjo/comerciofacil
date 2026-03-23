@@ -77,7 +77,7 @@ export default function SalesHistoryPage() {
     const rows: string[][] = []
     const header = [
       'ID Venda', 'Data', 'Status', 'Forma de Pagamento',
-      'Subtotal (R$)', 'Desconto (R$)', 'Total (R$)',
+      'Total (R$)',
       'Produtos (qtd x nome x preço unit.)',
     ]
     rows.push(header)
@@ -91,8 +91,6 @@ export default function SalesHistoryPage() {
         new Date(sale.createdAt).toLocaleString('pt-BR'),
         sale.status === 'canceled' ? 'Cancelada' : 'Concluída',
         PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod,
-        Number(sale.subtotal ?? sale.total).toFixed(2),
-        Number(sale.discount ?? 0).toFixed(2),
         Number(sale.total).toFixed(2),
         itemsStr,
       ])

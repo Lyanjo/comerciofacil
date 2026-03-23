@@ -83,26 +83,32 @@ export default function CashierPage() {
     showFeedback(`✓ ${found.name}`, true)
   }, [beep, showFeedback])
 
-  // Listener de teclado para capturar leituras do scanner USB/bluetooth
-  // Scanners enviam os dígitos muito rápido e terminam com Enter
+  // Listener de teclado para capturar leituras do scanner USB/bluetooth.
+  // Scanners emitem os dígitos em sequência muito rápida (~10-50ms entre teclas).
+  // A estratégia: acumula dígitos e dispara automaticamente após 80ms de silêncio
+  // (tempo suficiente para o scanner terminar, mas curto demais para digitação humana).
+  // Enter também dispara caso o scanner envie (compatibilidade).
   useEffect(() => {
     if (!scannerOpen) return
     const handleKey = (e: KeyboardEvent) => {
-      // Ignora teclas de controle exceto Enter
       if (e.key === 'Enter') {
+        // Disparo imediato via Enter
         const code = barcodeBufferRef.current.trim()
         barcodeBufferRef.current = ''
-        if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current)
+        if (barcodeTimerRef.current) { clearTimeout(barcodeTimerRef.current); barcodeTimerRef.current = null }
         if (code.length >= 8) addByBarcode(code)
         return
       }
       if (e.key.length === 1) {
         barcodeBufferRef.current += e.key
-        // Reset buffer se não vier mais entrada em 300ms (digitação manual)
+        // Reinicia o timer a cada tecla — dispara 80ms após a última tecla
         if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current)
         barcodeTimerRef.current = setTimeout(() => {
+          const code = barcodeBufferRef.current.trim()
           barcodeBufferRef.current = ''
-        }, 300)
+          barcodeTimerRef.current = null
+          if (code.length >= 8) addByBarcode(code)
+        }, 80)
       }
     }
     window.addEventListener('keydown', handleKey)

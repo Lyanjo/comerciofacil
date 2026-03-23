@@ -48,7 +48,6 @@ export default function AdminLayout() {
               title="Alterar senha"
             >
               <KeyRound size={17} />
-              <span className="hidden md:inline">Senha</span>
             </button>
             <button
               onClick={handleLogout}

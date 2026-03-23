@@ -40,7 +40,6 @@ export default function ResellerLayout() {
             <span className="hidden md:block text-indigo-200 text-sm">{user?.name}</span>
             <button onClick={() => setShowChangePwd(true)} className="flex items-center gap-1 text-indigo-200 hover:text-white transition text-sm" title="Alterar senha">
               <KeyRound size={17} />
-              <span className="hidden md:inline">Senha</span>
             </button>
             <button onClick={handleLogout} className="flex items-center gap-1 text-indigo-200 hover:text-white transition text-sm">
               <LogOut size={18} />
