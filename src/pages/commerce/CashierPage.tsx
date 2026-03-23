@@ -27,6 +27,8 @@ export default function CashierPage() {
   // ─── Leitor de código de barras ───────────────────────────────────────────
   const [scannerOpen, setScannerOpen] = useState(false)
   const [scanFeedback, setScanFeedback] = useState<{ msg: string; ok: boolean } | null>(null)
+  const [manualCode, setManualCode] = useState('')
+  const manualTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const barcodeBufferRef = useRef('')
   const barcodeTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
   const productsRef = useRef<Product[]>([])
@@ -359,7 +361,7 @@ export default function CashierPage() {
       </div>
     </div>
 
-    {/* Modal — entrada MANUAL de código (para quem não tem leitor físico) */}
+    {/* Modal — leitor USB/bluetooth ou digitação manual */}
     {scannerOpen && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
         <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -368,12 +370,12 @@ export default function CashierPage() {
               <Barcode size={20} />
               <h2 className="font-bold text-gray-800 text-lg">Código de Barras</h2>
             </div>
-            <button onClick={() => setScannerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">
+            <button onClick={() => { setScannerOpen(false); setManualCode('') }} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">
               <X size={18} />
             </button>
           </div>
           <p className="text-sm text-gray-500 mb-4">
-            Digite o código manualmente e pressione <kbd className="bg-gray-100 px-1 rounded text-xs">Enter</kbd>:
+            Aponte o leitor para o produto ou digite o código:
           </p>
           <input
             type="text"
@@ -381,13 +383,25 @@ export default function CashierPage() {
             className="input text-center text-xl tracking-widest font-mono"
             placeholder="0000000000000"
             autoFocus
+            value={manualCode}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '')
+              setManualCode(val)
+              // Dispara automaticamente 80ms após parar de receber dígitos
+              if (manualTimerRef.current) clearTimeout(manualTimerRef.current)
+              if (val.length >= 8) {
+                manualTimerRef.current = setTimeout(() => {
+                  addByBarcode(val)
+                  setManualCode('')
+                }, 80)
+              }
+            }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const code = e.currentTarget.value.trim()
-                if (code.length >= 8) {
-                  addByBarcode(code)
-                  e.currentTarget.value = ''
-                }
+              // Enter também dispara imediatamente (compatibilidade)
+              if (e.key === 'Enter' && manualCode.length >= 8) {
+                if (manualTimerRef.current) clearTimeout(manualTimerRef.current)
+                addByBarcode(manualCode)
+                setManualCode('')
               }
             }}
           />
