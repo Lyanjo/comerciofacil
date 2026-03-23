@@ -101,4 +101,41 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: Response) => {
   }
 })
 
+// POST /api/auth/change-password
+router.post('/change-password', authMiddleware, async (req: AuthRequest, res: Response) => {
+  try {
+    const { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string }
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias.' })
+      return
+    }
+    if (newPassword.length < 6) {
+      res.status(400).json({ error: 'A nova senha deve ter no mínimo 6 caracteres.' })
+      return
+    }
+
+    const db = getDb()
+    const user = await db.get<{ password_hash: string }>(
+      `SELECT password_hash FROM users WHERE id = ?`,
+      [req.user!.id]
+    )
+    if (!user) { res.status(404).json({ error: 'Usuário não encontrado.' }); return }
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash)
+    if (!valid) {
+      res.status(401).json({ error: 'Senha atual incorreta.' })
+      return
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10)
+    await db.run(`UPDATE users SET password_hash = ? WHERE id = ?`, [newHash, req.user!.id])
+
+    res.json({ message: 'Senha alterada com sucesso.' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Erro interno.' })
+  }
+})
+
 export default router

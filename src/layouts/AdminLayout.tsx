@@ -1,7 +1,8 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { Users, LayoutDashboard, LogOut, Menu, X, ShieldAlert } from 'lucide-react'
+import { Users, LayoutDashboard, LogOut, Menu, X, ShieldAlert, KeyRound } from 'lucide-react'
 import { useState } from 'react'
+import ChangePasswordModal from '../components/ChangePasswordModal'
 
 const navItems = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -16,6 +17,7 @@ export default function AdminLayout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showChangePwd, setShowChangePwd] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -24,6 +26,7 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
       {/* Topbar */}
       <header className="bg-primary-700 text-white shadow-md z-10">
         <div className="flex items-center justify-between px-4 py-3">
@@ -39,6 +42,14 @@ export default function AdminLayout() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:block text-primary-200 text-sm">{user?.name}</span>
+            <button
+              onClick={() => setShowChangePwd(true)}
+              className="flex items-center gap-1 text-primary-200 hover:text-white transition text-sm"
+              title="Alterar senha"
+            >
+              <KeyRound size={17} />
+              <span className="hidden md:inline">Senha</span>
+            </button>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1 text-primary-200 hover:text-white transition text-sm"

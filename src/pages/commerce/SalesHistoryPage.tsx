@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
-import { History, ShoppingBag, Loader2, SlidersHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown, XCircle } from 'lucide-react'
+import { History, ShoppingBag, Loader2, SlidersHorizontal, X, ChevronUp, ChevronDown, ChevronsUpDown, XCircle, Download } from 'lucide-react'
 import { saleService } from '../../services/saleService'
 import type { SaleWithItems } from '../../services/saleService'
 
@@ -72,6 +72,47 @@ export default function SalesHistoryPage() {
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== '')
 
+  // ─── Exportar CSV ──────────────────────────────────────────────────────────
+  const exportCSV = () => {
+    const rows: string[][] = []
+    const header = [
+      'ID Venda', 'Data', 'Status', 'Forma de Pagamento',
+      'Subtotal (R$)', 'Desconto (R$)', 'Total (R$)',
+      'Produtos (qtd x nome x preço unit.)',
+    ]
+    rows.push(header)
+
+    for (const sale of processed) {
+      const itemsStr = (sale.items ?? [])
+        .map((i) => `${i.quantity}x ${i.productName} @ R$${Number(i.unitPrice).toFixed(2)}`)
+        .join(' | ')
+      rows.push([
+        String(sale.id).slice(0, 8).toUpperCase(),
+        new Date(sale.createdAt).toLocaleString('pt-BR'),
+        sale.status === 'canceled' ? 'Cancelada' : 'Concluída',
+        PAYMENT_LABELS[sale.paymentMethod] || sale.paymentMethod,
+        Number(sale.subtotal ?? sale.total).toFixed(2),
+        Number(sale.discount ?? 0).toFixed(2),
+        Number(sale.total).toFixed(2),
+        itemsStr,
+      ])
+    }
+
+    const csvContent = rows
+      .map((r) => r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
+      .join('\r\n')
+
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const dateTag = new Date().toISOString().slice(0, 10)
+    a.download = `historico-vendas-${dateTag}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const activePayments = useMemo(() => {
     const set = new Set(sales.map((s) => s.paymentMethod))
     return Array.from(set)
@@ -129,21 +170,33 @@ export default function SalesHistoryPage() {
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <History size={24} className="text-emerald-600" />Histórico de Vendas
         </h1>
-        <button
-          onClick={() => setShowFilters((v) => !v)}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors
-            ${showFilters || hasActiveFilters
-              ? 'bg-primary-50 border-primary-300 text-primary-700'
-              : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-        >
-          <SlidersHorizontal size={15} />
-          Filtros
-          {hasActiveFilters && (
-            <span className="bg-primary-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
-              {Object.values(filters).filter((v) => v !== '').length}
-            </span>
+        <div className="flex items-center gap-2">
+          {processed.length > 0 && (
+            <button
+              onClick={exportCSV}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+              title="Exportar resultado atual como CSV"
+            >
+              <Download size={15} />
+              <span className="hidden sm:inline">Exportar CSV</span>
+            </button>
           )}
-        </button>
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors
+              ${showFilters || hasActiveFilters
+                ? 'bg-primary-50 border-primary-300 text-primary-700'
+                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            <SlidersHorizontal size={15} />
+            Filtros
+            {hasActiveFilters && (
+              <span className="bg-primary-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                {Object.values(filters).filter((v) => v !== '').length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Painel de filtros */}

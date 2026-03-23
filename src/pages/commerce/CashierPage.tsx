@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from 'react'
-import { Plus, Minus, Trash2, CheckCircle, ShoppingCart, Loader2 } from 'lucide-react'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
+import { Plus, Minus, Trash2, CheckCircle, ShoppingCart, Loader2, Barcode, X } from 'lucide-react'
 import type { Product, SaleItem, PaymentMethod } from '../../types'
 import { productService } from '../../services/productService'
 import { saleService } from '../../services/saleService'
@@ -23,6 +23,91 @@ export default function CashierPage() {
   const [confirmedChange, setConfirmedChange] = useState<number | null>(null)
   const [loadingSale, setLoadingSale] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+
+  // ─── Leitor de código de barras ───────────────────────────────────────────
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [scanFeedback, setScanFeedback] = useState<{ msg: string; ok: boolean } | null>(null)
+  const barcodeBufferRef = useRef('')
+  const barcodeTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const productsRef = useRef<Product[]>([])
+  productsRef.current = products
+
+  // Som de bip via Web Audio API
+  const beep = useCallback((ok: boolean) => {
+    try {
+      const ctx = new AudioContext()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = ok ? 880 : 300
+      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (ok ? 0.12 : 0.25))
+      osc.start(ctx.currentTime)
+      osc.stop(ctx.currentTime + (ok ? 0.12 : 0.25))
+    } catch { /* navegador sem AudioContext */ }
+  }, [])
+
+  // Feedback visual temporário
+  const showFeedback = useCallback((msg: string, ok: boolean) => {
+    setScanFeedback({ msg, ok })
+    setTimeout(() => setScanFeedback(null), 2000)
+  }, [])
+
+  // Adiciona produto pelo código de barras
+  const addByBarcode = useCallback((code: string) => {
+    const found = productsRef.current.find((p) => p.barcode === code)
+    if (!found) {
+      beep(false)
+      showFeedback(`Código não encontrado: ${code}`, false)
+      return
+    }
+    if (found.stock <= 0) {
+      beep(false)
+      showFeedback(`Sem estoque: ${found.name}`, false)
+      return
+    }
+    setCart((prev) => {
+      const existing = prev.find((i) => i.productId === found.id)
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === found.id
+            ? { ...i, quantity: i.quantity + 1, totalPrice: (i.quantity + 1) * i.unitPrice }
+            : i
+        )
+      }
+      return [...prev, { productId: found.id, productName: found.name, quantity: 1, unitPrice: found.salePrice, totalPrice: found.salePrice }]
+    })
+    beep(true)
+    showFeedback(`✓ ${found.name}`, true)
+  }, [beep, showFeedback])
+
+  // Listener de teclado para capturar leituras do scanner USB/bluetooth
+  // Scanners enviam os dígitos muito rápido e terminam com Enter
+  useEffect(() => {
+    if (!scannerOpen) return
+    const handleKey = (e: KeyboardEvent) => {
+      // Ignora teclas de controle exceto Enter
+      if (e.key === 'Enter') {
+        const code = barcodeBufferRef.current.trim()
+        barcodeBufferRef.current = ''
+        if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current)
+        if (code.length >= 8) addByBarcode(code)
+        return
+      }
+      if (e.key.length === 1) {
+        barcodeBufferRef.current += e.key
+        // Reset buffer se não vier mais entrada em 300ms (digitação manual)
+        if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current)
+        barcodeTimerRef.current = setTimeout(() => {
+          barcodeBufferRef.current = ''
+        }, 300)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [scannerOpen, addByBarcode])
 
   useEffect(() => {
     productService.list().then((data) => {
@@ -123,19 +208,42 @@ export default function CashierPage() {
   }
 
   return (
+    <>
     <div className="flex flex-col lg:flex-row gap-4 h-full">
       {/* Painel esquerdo — Produtos */}
       <div className="flex-1 min-w-0">
         <h1 className="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
           <ShoppingCart size={22} className="text-emerald-600" />Caixa
         </h1>
-        <input
-          type="text"
-          className="input mb-4"
-          placeholder="🔍 Buscar produto..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        {/* Barra de busca + botão de código de barras */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            className="input flex-1 min-w-0"
+            placeholder="🔍 Buscar produto..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <button
+            onClick={() => setScannerOpen(true)}
+            title="Ler código de barras (ou use leitor USB conectado)"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium whitespace-nowrap transition-colors
+              ${scanFeedback?.ok === true  ? 'bg-green-100 border-green-400 text-green-700' :
+                scanFeedback?.ok === false ? 'bg-red-100  border-red-400  text-red-700'  :
+                'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            <Barcode size={16} />
+            <span className="hidden sm:inline">Cód. Barras</span>
+          </button>
+        </div>
+
+        {/* Feedback visual de leitura */}
+        {scanFeedback && (
+          <div className={`mb-3 px-3 py-2 rounded-lg text-sm font-medium
+            ${scanFeedback.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            {scanFeedback.msg}
+          </div>
+        )}
 
         {loadingProducts ? (
           <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
@@ -240,5 +348,48 @@ export default function CashierPage() {
         </div>
       </div>
     </div>
+
+    {/* Modal do leitor de codigo de barras */}
+    {scannerOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2 text-emerald-600">
+              <Barcode size={20} />
+              <h2 className="font-bold text-gray-800 text-lg">Codigo de Barras</h2>
+            </div>
+            <button onClick={() => setScannerOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 text-gray-400">
+              <X size={18} />
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Use o leitor USB/bluetooth (ele digita automaticamente) ou insira o codigo manualmente:
+          </p>
+          <input
+            type="text"
+            inputMode="numeric"
+            className="input text-center text-xl tracking-widest font-mono"
+            placeholder="0000000000000"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const code = e.currentTarget.value.trim()
+                e.currentTarget.value = ''
+                if (code.length >= 8) addByBarcode(code)
+              }
+            }}
+          />
+          <p className="text-xs text-gray-400 mt-3 text-center">
+            Pressione Enter apos digitar ou ao usar o leitor
+          </p>
+          {scanFeedback && (
+            <div className={`mt-3 px-3 py-2 rounded-lg text-sm font-medium text-center ${scanFeedback.ok ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              {scanFeedback.msg}
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }

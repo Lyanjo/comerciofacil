@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { ShoppingCart, Package, DollarSign, History, LogOut, Menu, X } from 'lucide-react'
+import { ShoppingCart, Package, DollarSign, History, LogOut, Menu, X, KeyRound } from 'lucide-react'
+import ChangePasswordModal from '../components/ChangePasswordModal'
 
 const navItems = [
   { to: '/comercio/caixa', label: 'Caixa', icon: ShoppingCart },
@@ -14,6 +15,7 @@ export default function CommerceLayout() {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showChangePwd, setShowChangePwd] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -22,6 +24,7 @@ export default function CommerceLayout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {showChangePwd && <ChangePasswordModal onClose={() => setShowChangePwd(false)} />}
       {/* Header */}
       <header className="bg-emerald-700 text-white shadow-md z-10">
         <div className="flex items-center justify-between px-4 py-3">
@@ -33,6 +36,10 @@ export default function CommerceLayout() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:block text-emerald-200 text-sm">{user?.name}</span>
+            <button onClick={() => setShowChangePwd(true)} className="flex items-center gap-1 text-emerald-200 hover:text-white transition text-sm" title="Alterar senha">
+              <KeyRound size={17} />
+              <span className="hidden md:inline">Senha</span>
+            </button>
             <button onClick={handleLogout} className="flex items-center gap-1 text-emerald-200 hover:text-white transition text-sm">
               <LogOut size={18} />
               <span className="hidden md:inline">Sair</span>
